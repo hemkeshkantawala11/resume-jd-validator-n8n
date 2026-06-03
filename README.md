@@ -117,17 +117,17 @@ Send Email to candidate + Log to Google Sheet
 **Score:** 72/100 — Medium Fit
 
 **Strengths identified:**
-- diverse technical skills
-- leadership experience
+- Strong Problem Solving Skills
+- Excellent communication skills
 
 **Gaps identified:**
-- lack of experience with required backend frameworks
-- insufficient experience with cloud platforms and DevOps tools
+- Limited experience with cloud-based technologies
+- No experience with machine learning
 
 **Top Recommendations:**
-1. Gain experience with Django and other required backend frameworks through online courses or personal projects
-2. Familiarize yourself with AWS services such as EC2, S3, Lambda, and RDS to improve your cloud platform skills
-3. Develop understanding and practical experience with DevOps tools, including CI/CD pipelines and Docker
+1. Develop skills in Ruby and Swift to fill the missing skills gap.
+2. Gain experience with cloud-based technologies to enhance your technical profile.
+3. Familiarize yourself with machine learning fundamentals to expand your skill set.
 
 ---
 
