@@ -1,0 +1,622 @@
+{
+  "name": "Resume Fit Validator",
+  "nodes": [
+    {
+      "parameters": {
+        "formTitle": "Resume Fit Validator",
+        "formDescription": "Upload your resume and job description to get an instant fit score and feedback.",
+        "formFields": {
+          "values": [
+            {
+              "fieldLabel": "Name",
+              "requiredField": true
+            },
+            {
+              "fieldLabel": "Email",
+              "fieldType": "email",
+              "requiredField": true
+            },
+            {
+              "fieldLabel": "Resume",
+              "fieldType": "file",
+              "multipleFiles": false,
+              "acceptFileTypes": ".pdf,.doc,.docx,.txt",
+              "requiredField": true
+            },
+            {
+              "fieldLabel": "JD",
+              "fieldType": "file",
+              "multipleFiles": false,
+              "acceptFileTypes": ".pdf,.doc,.docx,.txt",
+              "requiredField": true
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "28d607ff-3e8f-4fac-af02-35bc65e45735",
+      "name": "Form Trigger",
+      "type": "n8n-nodes-base.formTrigger",
+      "typeVersion": 2.2,
+      "position": [
+        0,
+        0
+      ],
+      "webhookId": "9547fe9b-7f45-444d-96b6-8cb391996ac8"
+    },
+    {
+      "parameters": {
+        "operation": "pdf",
+        "binaryPropertyName": "Resume",
+        "options": {}
+      },
+      "id": "6ad3281c-7b0c-4814-9f2b-5e1470d070a1",
+      "name": "Extract Resume Text",
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1,
+      "position": [
+        240,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "pdf",
+        "binaryPropertyName": "JD",
+        "options": {}
+      },
+      "id": "15603d8c-a993-452f-a186-311cc8fff55f",
+      "name": "Extract JD Text",
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1,
+      "position": [
+        480,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const resumeText = $('Extract Resume Text').item.json.text?.trim();\nconst jdText = $('Extract JD Text').item.json.text?.trim();\nconst name = $('Form Trigger').item.json['Name']?.trim();\nconst email = $('Form Trigger').item.json['Email']?.trim();\n\nif (!resumeText || resumeText.length < 50) {\n  throw new Error('Could not extract text from resume. Please upload a text-based PDF.');\n}\n\nif (!jdText || jdText.length < 50) {\n  throw new Error('Could not extract text from JD. Please upload a text-based PDF.');\n}\n\nif (!name || !email) {\n  throw new Error('Name and email are required.');\n}\n\nreturn [\n  {\n    json: {\n      name,\n      email,\n      resume: resumeText,\n      jd: jdText\n    }\n  }\n];"
+      },
+      "id": "a0675de3-ecd0-4eaa-8cb5-d8f39365bf23",
+      "name": "Input Validator",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        720,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Extract structured information from this resume.\n\nResume:\n{{ $json.resume }}\n\nReturn ONLY valid JSON, no markdown, no extra text:\n{\n  \"candidate_name\": \"\",\n  \"total_experience_years\": 0,\n  \"education\": [\"degree - institution\"],\n  \"technical_skills\": [\"skill1\", \"skill2\"],\n  \"soft_skills\": [\"skill1\"],\n  \"previous_roles\": [\"role at company\"],\n  \"certifications\": []\n}\n\nREMEMBER: Start your response with { and end with }. Nothing else.\n",
+        "options": {}
+      },
+      "id": "53b29be3-54bf-483e-b023-3cf154cfc860",
+      "name": "Resume Extractor Agent",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 1.7,
+      "position": [
+        960,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Extract the requirements from this job description.\n\nJob Description:\n{{ $('Input Validator').item.json.jd }}\n\nReturn ONLY valid JSON, no markdown, no extra text:\n{\n  \"role_title\": \"\",\n  \"required_skills\": [\"skill1\", \"skill2\"],\n  \"preferred_skills\": [\"skill1\"],\n  \"minimum_experience_years\": 0,\n  \"education_requirement\": \"\",\n  \"key_responsibilities\": [\"responsibility1\"]\n}\n\nREMEMBER: Start your response with { and end with }. Nothing else.\n",
+        "options": {}
+      },
+      "id": "340ff030-c5d7-48bf-acb4-608163acc10e",
+      "name": "JD Analyzer Agent",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 1.7,
+      "position": [
+        1232,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Compare this candidate resume against the job requirements and score the fit.\n\nResume Data:\n{{ $('Resume Extractor Agent').item.json.output }}\n\nJob Requirements:\n{{ $('JD Analyzer Agent').item.json.output }}\n\nScoring rules:\n- 70 to 100: Strong Fit\n- 40 to 69: Medium Fit\n- 0 to 39: Weak Fit\n\nReturn ONLY valid JSON, no markdown, no extra text:\n{\n  \"score\": 72,\n  \"fit_category\": \"Medium Fit\",\n  \"matched_skills\": [\"skill1\", \"skill2\"],\n  \"missing_skills\": [\"skill1\", \"skill2\"],\n  \"experience_match\": \"Meets requirement\",\n  \"education_match\": \"Meets\",\n  \"strengths\": [\"strength1\", \"strength2\"],\n  \"gaps\": [\"gap1\", \"gap2\"]\n}\n\nREMEMBER: Start your response with { and end with }. Nothing else.\n",
+        "options": {}
+      },
+      "id": "a1d1564b-3327-43c8-a562-f719c55a1207",
+      "name": "Fit Scorer Agent",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 1.7,
+      "position": [
+        1488,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 1
+                },
+                "conditions": [
+                  {
+                    "id": "strong-fit-rule",
+                    "leftValue": "={{ JSON.parse($json.output).score }}",
+                    "rightValue": 70,
+                    "operator": {
+                      "type": "number",
+                      "operation": "gte",
+                      "name": "filter.operator.gte"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Strong Fit"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 1
+                },
+                "conditions": [
+                  {
+                    "id": "medium-fit-rule",
+                    "leftValue": "={{ JSON.parse($json.output).score }}",
+                    "rightValue": 40,
+                    "operator": {
+                      "type": "number",
+                      "operation": "gte",
+                      "name": "filter.operator.gte"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Medium Fit"
+            }
+          ]
+        },
+        "options": {
+          "fallbackOutput": "extra"
+        }
+      },
+      "id": "bf1fa7fe-022e-4e4d-a173-70b579d6983b",
+      "name": "Score Router",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3,
+      "position": [
+        1744,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=You are a career advisor. Generate specific, actionable feedback for this candidate.\n\nFit Analysis:\n{{ $('Fit Scorer Agent').item.json.output }}\n\nFit Category: {{ JSON.parse($('Fit Scorer Agent').item.json.output).fit_category }}\n\nTailor feedback based on category:\n- Strong Fit: How to stand out, tailor resume for this role, interview prep tips\n- Medium Fit: Top 3 gaps to address urgently, quick wins to improve fit score\n- Weak Fit: Honest assessment of the gap, what skills to build, whether to apply now\n\nReturn ONLY valid JSON, no markdown, no extra text:\n{\n  \"verdict\": \"one sentence overall verdict\",\n  \"top_recommendations\": [\n    \"specific action 1\",\n    \"specific action 2\",\n    \"specific action 3\"\n  ],\n  \"resume_improvements\": [\"improvement 1\", \"improvement 2\"],\n  \"skills_to_develop\": [\"skill 1\", \"skill 2\"],\n  \"encouragement\": \"one motivating sentence\"\n}\n\nREMEMBER: Start your response with { and end with }. Nothing else.\n",
+        "options": {}
+      },
+      "id": "0670748f-6aa8-4833-bf4d-9677999dcac7",
+      "name": "Feedback Generator Agent",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 1.7,
+      "position": [
+        2000,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $json.email }}",
+        "subject": "={{ $json.subject }}",
+        "message": "={{ $json.html_body }}",
+        "options": {}
+      },
+      "id": "1b75b4d8-1942-4bac-94dc-6e99dd9c54be",
+      "name": "Send Email",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        2512,
+        0
+      ],
+      "webhookId": "946a74fc-dc75-4f73-a1ca-f7b787770f2f",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "GDMOKYboCYVDGdeq",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "https://docs.google.com/spreadsheets/d/1yIDrCAUeJCK-v8kFOqY2FFms-04UGlhNMpFYkFCFgOc/edit?gid=0#gid=0",
+          "mode": "url"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "https://docs.google.com/spreadsheets/d/1yIDrCAUeJCK-v8kFOqY2FFms-04UGlhNMpFYkFCFgOc/edit?gid=0#gid=0",
+          "mode": "url"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Name": "=\t{{ $('Email Formatter').item.json.name }}",
+            "Fit Score": "={{ $('Email Formatter').item.json.score }}",
+            "Email": "=\t{{ $('Email Formatter').item.json.email }}",
+            "Fit Category": "={{ $('Email Formatter').item.json.fit_category }}",
+            "Timestamp": "=\t{{ new Date().toISOString() }}"
+          },
+          "matchingColumns": [
+            "id"
+          ],
+          "schema": [
+            {
+              "id": "Name",
+              "displayName": "Name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Email",
+              "displayName": "Email",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Fit Score",
+              "displayName": "Fit Score",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Fit Category",
+              "displayName": "Fit Category",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Timestamp",
+              "displayName": "Timestamp",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "id": "dad19098-d377-4ad2-9f9d-947649259a95",
+      "name": "Log to Google Sheet",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.4,
+      "position": [
+        2752,
+        0
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "EIaiitm7KPCYsARu",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "model": "llama-3.3-70b-versatile",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGroq",
+      "typeVersion": 1,
+      "position": [
+        960,
+        224
+      ],
+      "id": "d0c4b4d9-f4b4-4375-868a-e45ebcca1cd5",
+      "name": "Groq Chat Model",
+      "credentials": {
+        "groqApi": {
+          "id": "bvzmjM30ipcKPwRB",
+          "name": "Groq account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "model": "llama-3.3-70b-versatile",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGroq",
+      "typeVersion": 1,
+      "position": [
+        1232,
+        208
+      ],
+      "id": "65fcb532-04ce-456a-9abf-37c75835a1b6",
+      "name": "Groq Chat Model1",
+      "credentials": {
+        "groqApi": {
+          "id": "bvzmjM30ipcKPwRB",
+          "name": "Groq account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "model": "llama-3.3-70b-versatile",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGroq",
+      "typeVersion": 1,
+      "position": [
+        1488,
+        208
+      ],
+      "id": "a063c9c2-a98a-4722-abc6-1006d9265541",
+      "name": "Groq Chat Model2",
+      "credentials": {
+        "groqApi": {
+          "id": "bvzmjM30ipcKPwRB",
+          "name": "Groq account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "model": "llama-3.3-70b-versatile",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGroq",
+      "typeVersion": 1,
+      "position": [
+        2000,
+        208
+      ],
+      "id": "d55e7dec-79c0-4ad7-96ec-e13649d2fde1",
+      "name": "Groq Chat Model3",
+      "credentials": {
+        "groqApi": {
+          "id": "bvzmjM30ipcKPwRB",
+          "name": "Groq account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "function extractJSON(raw) {\n  if (!raw) throw new Error('Empty agent output');\n  // Strip markdown fences\n  let text = raw.replace(/```json\\s*/gi, '').replace(/```\\s*/g, '').trim();\n  // Try direct parse\n  try { return JSON.parse(text); } catch (_) {}\n  // Find first { and last } — most reliable way to extract JSON\n  const start = text.indexOf('{');\n  const end = text.lastIndexOf('}');\n  if (start !== -1 && end !== -1 && end > start) {\n    try { return JSON.parse(text.substring(start, end + 1)); } catch (e) {\n      throw new Error('Found JSON block but failed to parse: ' + e.message);\n    }\n  }\n  throw new Error('No JSON found in output: ' + text.substring(0, 120));\n}\n\n\nconst scorer = extractJSON($('Fit Scorer Agent').item.json.output);\nconst feedback = extractJSON($json.output);\nconst name = $('Input Validator').item.json.name;\nconst email = $('Input Validator').item.json.email;\n\nconst scoreColor = scorer.score >= 70 ? '#27ae60' : scorer.score >= 40 ? '#f39c12' : '#e74c3c';\nconst bgColor = scorer.score >= 70 ? '#eafaf1' : scorer.score >= 40 ? '#fef9e7' : '#fdedec';\n\nconst html = `\n<div style=\"font-family:Arial,sans-serif;max-width:620px;margin:auto;padding:24px;border:1px solid #e0e0e0;border-radius:10px\">\n\n  <h2 style=\"color:#2c3e50;border-bottom:2px solid #eee;padding-bottom:10px\">Resume Fit Analysis Report</h2>\n  <p style=\"color:#555\">Hi <b>${name}</b>, here are your results for the role you applied for:</p>\n\n  <div style=\"background:${bgColor};border:1px solid ${scoreColor};padding:20px;border-radius:8px;margin:20px 0;text-align:center\">\n    <div style=\"font-size:48px;font-weight:bold;color:${scoreColor}\">${scorer.score}<span style=\"font-size:24px\">/100</span></div>\n    <div style=\"font-size:20px;color:${scoreColor};margin:6px 0\"><b>${scorer.fit_category}</b></div>\n    <p style=\"color:#555;margin:8px 0 0\">${feedback.verdict}</p>\n  </div>\n\n  <h3 style=\"color:#27ae60\">✅ Your Strengths</h3>\n  <ul style=\"color:#444\">${scorer.strengths.map(s => `<li style=\"margin:4px 0\">${s}</li>`).join('')}</ul>\n\n  <h3 style=\"color:#e74c3c\">📌 Gaps Identified</h3>\n  <ul style=\"color:#444\">${scorer.gaps.map(g => `<li style=\"margin:4px 0\">${g}</li>`).join('')}</ul>\n\n  <h3 style=\"color:#2980b9\">🎯 Top Recommendations</h3>\n  <ol style=\"color:#444\">${feedback.top_recommendations.map(r => `<li style=\"margin:6px 0\">${r}</li>`).join('')}</ol>\n\n  <h3 style=\"color:#8e44ad\">📚 Skills to Develop</h3>\n  <ul style=\"color:#444\">${feedback.skills_to_develop.map(s => `<li style=\"margin:4px 0\">${s}</li>`).join('')}</ul>\n\n  ${feedback.resume_improvements && feedback.resume_improvements.length ? `\n  <h3 style=\"color:#16a085\">📝 Resume Improvements</h3>\n  <ul style=\"color:#444\">${feedback.resume_improvements.map(i => `<li style=\"margin:4px 0\">${i}</li>`).join('')}</ul>` : ''}\n\n  <div style=\"background:#eaf4fb;padding:14px;border-radius:8px;margin-top:20px;border-left:4px solid #3498db\">\n    <b style=\"color:#2c3e50\">💬 ${feedback.encouragement}</b>\n  </div>\n\n  <p style=\"color:#aaa;font-size:12px;margin-top:24px;text-align:center\">Generated by Resume Fit Validator — AI-powered career tool</p>\n</div>`;\n\nreturn [\n  {\n    json: {\n      subject: `Your Resume Fit Report — ${scorer.fit_category} (${scorer.score}/100)`,\n      html_body: html,\n      score: scorer.score,\n      fit_category: scorer.fit_category,\n      name: name,\n      email: email\n    }\n  }\n];"
+      },
+      "id": "486770b5-1e2c-4362-a26c-4cb87be4b4f1",
+      "name": "Email Formatter",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2272,
+        0
+      ]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Form Trigger": {
+      "main": [
+        [
+          {
+            "node": "Extract Resume Text",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Resume Text": {
+      "main": [
+        [
+          {
+            "node": "Extract JD Text",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract JD Text": {
+      "main": [
+        [
+          {
+            "node": "Input Validator",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Input Validator": {
+      "main": [
+        [
+          {
+            "node": "Resume Extractor Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Resume Extractor Agent": {
+      "main": [
+        [
+          {
+            "node": "JD Analyzer Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "JD Analyzer Agent": {
+      "main": [
+        [
+          {
+            "node": "Fit Scorer Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fit Scorer Agent": {
+      "main": [
+        [
+          {
+            "node": "Score Router",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Score Router": {
+      "main": [
+        [
+          {
+            "node": "Feedback Generator Agent",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Feedback Generator Agent",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Feedback Generator Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Feedback Generator Agent": {
+      "main": [
+        [
+          {
+            "node": "Email Formatter",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Email": {
+      "main": [
+        [
+          {
+            "node": "Log to Google Sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Groq Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Resume Extractor Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Groq Chat Model1": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "JD Analyzer Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Groq Chat Model2": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Fit Scorer Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Groq Chat Model3": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Feedback Generator Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Email Formatter": {
+      "main": [
+        [
+          {
+            "node": "Send Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "330817e6-9386-48e6-b32d-8e9dbe9ba1ec",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "d2ea8e2c88e46f322b855cf15aa2db314054a2d06fefc906499204e7de103e72"
+  },
+  "id": "v3At2X6VmhQWxAhC",
+  "tags": []
+}
